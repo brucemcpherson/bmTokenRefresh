@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+</head>
+
+<body>
+  <div id="info"><strong>first token</strong></div>
+  <div id="check"><strong>check it now</strong></div>
+  <div id="force"><strong>invalid token</strong></div>
+  <div id="checknew"><strong>check its an updated one</strong></div>
+  <div id="useexisting"><strong>should reuse existing</strong></div>
+  <div id="getnew"><strong>should get a new one</strong></div>
+  <script>
+  
+
+    (async () => {
+    
+      // log
+      divify = (name, text) => document.getElementById(name).innerHTML =document.getElementById(name).innerHTML + "<br>" + text
+      
+      // promisfy delay
+      const waiter = (delayMs) =>
+        new Promise((resolve) => setTimeout(resolve, delayMs));
+    
+      // a general promisified script.run
+      const runner = (name, ...args) =>
+        new Promise((resolve, reject) =>
+          google.script.run
+            .withFailureHandler((err) => {
+              console.log("failed", err);
+              reject(err);
+            })
+            .withSuccessHandler((result) => resolve(result))
+            [name](...args)
+        );
+    
+      // get a token and see when it expires
+      const info = await runner("getToken");
+      divify("info",JSON.stringify(info));
+    
+      // wait a bit and check a token
+      waiter(5000)
+        .then(async () => divify("check",JSON.stringify(await runner("checkToken", info.token))));
+    
+      // check what happens with an invalid token
+      divify("force",JSON.stringify(await runner("checkToken", "bidule")));
+    
+    
+      // make sure we actually get a new one
+      waiter(10000).then( async () => divify("checknew", JSON.stringify(
+            await runner("getToken")
+          ))
+      );
+      
+      // generalized function to get check or refresh a token when its almost expired
+      const useOrGetAToken = async (tokenInfo, minLife) =>
+         new Date().getTime() + minLife > tokenInfo.timeNow + tokenInfo.expiresIn 
+          ? await runner("getToken")
+          : Promise.resolve(tokenInfo);
+    
+      // this one should reuse existing token - 30 minutes min life
+      waiter(12000).then(
+        async () =>
+          divify("useexisting",JSON.stringify(
+            await useOrGetAToken(info, 1000 * 60 * 30)
+          ))
+      );
+    
+      // this one should get a new one - 59mins 50 secs min life
+      waiter(15000).then(
+        async () =>divify ("getnew",JSON.stringify(
+            await useOrGetAToken(info, 1000 * 60 * 59 + 50 * 1000)
+          ))
+      );
+    })();
+
+  </script>
+
+</body>
+
+</html>
